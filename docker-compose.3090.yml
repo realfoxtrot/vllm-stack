@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  vllm:
+    # Override ipc to shareable for PCIe multi-GPU (no NVLink on consumer cards)
+    ipc: shareable
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [gpu]
+    environment:
+      - NCCL_P2P_DISABLE=0
+      - NCCL_IB_DISABLE=1
+      - NCCL_SOCKET_IFNAME=eth0
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+      - CUDA_VISIBLE_DEVICES=0,1
+
+  dcgm-exporter:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [gpu]

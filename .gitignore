@@ -1,0 +1,14 @@
+# Secrets — NEVER commit these
+.env.active
+nginx/.htpasswd
+
+# Model weights — too large for git
+models/
+
+# Docker build artifacts
+model-ui/__pycache__/
+model-ui/*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

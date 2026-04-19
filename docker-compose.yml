@@ -1,0 +1,183 @@
+version: "3.8"
+
+services:
+
+  # ── Reverse Proxy ────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      model-ui:
+        condition: service_healthy
+      grafana:
+        condition: service_started
+    networks: [vllm-net]
+    restart: unless-stopped
+
+  # ── State & Queue ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks: [vllm-net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Management UI ─────────────────────────────────────────────────────────────
+  model-ui:
+    build: ./model-ui
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_CONTAINER_NAME=${VLLM_CONTAINER_NAME}
+    volumes:
+      - ./models:/models
+    networks: [vllm-net]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7860/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Async Worker (separated from app) ─────────────────────────────────────────
+  rq-worker:
+    build: ./model-ui
+    command: ["python", "-m", "rq.cli", "worker", "default",
+              "--url", "${REDIS_URL}",
+              "--results-ttl", "7200",
+              "--job-execution-timeout", "7200"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./models:/models
+      - /opt/vllm-stack:/opt/vllm-stack:ro
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - VLLM_CONTAINER_NAME=${VLLM_CONTAINER_NAME}
+      - HF_TOKEN=${HF_TOKEN}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+      - TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE:-1}
+      - GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.90}
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-8192}
+      - DTYPE=${DTYPE:-bfloat16}
+    user: root
+    networks: [vllm-net]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── vLLM Inference Server ─────────────────────────────────────────────────────
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: ${VLLM_CONTAINER_NAME}
+    runtime: nvidia
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+    volumes:
+      - ./models:/models
+      - huggingface_cache:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - MODEL_PATH=${MODEL_PATH}
+      - VLLM_GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.90}
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+    command: >
+      /bin/sh -c "
+        echo '[entrypoint] Starting vLLM with model: '\"$$MODEL_PATH\"
+        exec vllm serve /models/$$(echo $$MODEL_PATH | tr '/' '_')
+          --host 0.0.0.0
+          --port 8000
+          --dtype ${DTYPE:-bfloat16}
+          --tensor-parallel-size ${TENSOR_PARALLEL_SIZE:-1}
+          --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.90}
+          --max-model-len ${MAX_MODEL_LEN:-8192}
+          --enable-metrics
+          --disable-log-requests
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    networks: [vllm-net]
+    restart: unless-stopped
+
+  # ── GPU Metrics Exporter ──────────────────────────────────────────────────────
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.3.5-3.3.1-ubuntu22.04
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - DCGM_EXPORTER_LISTEN=:9400
+      - DCGM_EXPORTER_KUBERNETES=false
+    cap_add:
+      - SYS_ADMIN
+    networks: [vllm-net]
+    restart: unless-stopped
+
+  # ── Metrics Collection ────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks: [vllm-net]
+    restart: unless-stopped
+
+  # ── Metrics Visualization ─────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks: [vllm-net]
+    restart: unless-stopped
+
+networks:
+  vllm-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  huggingface_cache:
