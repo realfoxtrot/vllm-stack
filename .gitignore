@@ -29,21 +29,17 @@ target/
 *.a
 *.out
 
-# Logs and temp files
+# Logs and temporary files
 *.log
 *.tmp
 *.swp
 *.swo
 
-# Editors
-.vscode/
-.idea/
-
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
 
-# Coverage
+# Coverage reports
 coverage/
 htmlcov/
 .coverage
@@ -71,4 +67,14 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+
+# Editors
+.vscode/
+.idea/
+
+# Gradle
+.gradle/
+
+# Docker (if applicable)
+.dockerenv
 ```
