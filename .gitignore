@@ -1,14 +1,1 @@
-# Secrets — NEVER commit these
-.env.active
-nginx/.htpasswd
-
-# Model weights — too large for git
-models/
-
-# Docker build artifacts
-model-ui/__pycache__/
-model-ui/*.pyc
-
-# OS
-.DS_Store
-Thumbs.db
+Nothing needs to be added to the .gitignore file since only Python source files (.py) were modified and no build artifacts, dependencies, or temporary files were included in the changes.
