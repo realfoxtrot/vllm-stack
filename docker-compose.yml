@@ -13,6 +13,8 @@ services:
         condition: service_healthy
       grafana:
         condition: service_started
+      n8n:
+        condition: service_healthy
     networks: [vllm-net]
     restart: unless-stopped
 
@@ -170,6 +172,38 @@ services:
     networks: [vllm-net]
     restart: unless-stopped
 
+  # ── Workflow Automation (n8n) ─────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-vllm-stack}_n8n
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_BASE_URL=${N8N_BASE_URL:-http://localhost/n8n}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost/n8n-webhook/}
+      - GENERIC_TIMEZONE=${TIMEZONE:-UTC}
+      - DB_TYPE=sqlite
+      - DB_SQLITE_PATH=/home/node/.n8n/database
+      - N8N_USER_FOLDER=/home/node/.n8n
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-change-me-in-production}
+      - VLLM_API_URL=http://vllm:8000/v1
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks: [vllm-net]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 networks:
   vllm-net:
     driver: bridge
@@ -179,3 +213,4 @@ volumes:
   prometheus_data:
   grafana_data:
   huggingface_cache:
+  n8n_data:
