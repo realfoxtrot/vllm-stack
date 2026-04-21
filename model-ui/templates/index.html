@@ -128,6 +128,9 @@
             const repo = document.getElementById('selected-repo').value.trim();
             if (!repo) { alert('Please select or type a model repo ID.'); return; }
 
+            // Очистить предыдущий poll если был
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+
             const btn = document.getElementById('deploy-btn');
             const msg = document.getElementById('status-msg');
             btn.disabled = true;
@@ -139,10 +142,29 @@
             fd.append('repo_id', repo);
             fd.append('token', '');
 
-            const res = await fetch('/apply', { method: 'POST', body: fd });
-            const data = await res.json();
-
-            pollInterval = setInterval(() => pollJob(data.job_id), 4000);
+            try {
+                const res = await fetch('/apply', { method: 'POST', body: fd });
+                if (!res.ok) {
+                    msg.innerText = 'Error: server returned ' + res.status;
+                    msg.style.color = '#ef4444';
+                    btn.disabled = false;
+                    return;
+                }
+                const data = await res.json();
+                console.log('apply response:', data);
+                if (!data.job_id) {
+                    msg.innerText = 'Error: no job_id in response: ' + JSON.stringify(data);
+                    msg.style.color = '#ef4444';
+                    btn.disabled = false;
+                    return;
+                }
+                msg.innerText = 'Job queued: ' + data.job_id;
+                pollInterval = setInterval(() => pollJob(data.job_id), 4000);
+            } catch(e) {
+                msg.innerText = 'Network error: ' + e.message;
+                msg.style.color = '#ef4444';
+                btn.disabled = false;
+            }
         }
 
         async function pollJob(job_id) {
