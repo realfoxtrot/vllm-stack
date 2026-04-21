@@ -57,7 +57,7 @@ services:
     command: ["python", "-m", "rq.cli", "worker", "default",
               "--url", "${REDIS_URL}",
               "--results-ttl", "7200",
-              "--job-execution-timeout", "7200"]
+              "--job-timeout", "7200"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./models:/models
