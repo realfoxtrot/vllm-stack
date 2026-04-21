@@ -129,7 +129,7 @@ services:
 
   # ── GPU Metrics Exporter ──────────────────────────────────────────────────────
   dcgm-exporter:
-    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.5-ubuntu22.04
+    image: nvidia/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04
     runtime: nvidia
     deploy:
       resources:
