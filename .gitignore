@@ -1,50 +1,86 @@
-```
-# Environment
+# Docker related
+.dockerenv
+Dockerfile*
+docker-compose*.yml
+*.dockerignore
+
+# Environment variables
 .env
 .env.local
-*.env.*
+.env.*
 
-# Dependencies
-node_modules/
-.venv/
-venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-.julia/
-zig*/
-julia-*/
-
-# Build artifacts
-dist/
-build/
-target/
-*.pyc
-*.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
-# Logs and temporary files
+# Logs
 *.log
+
+# Temporary files
 *.tmp
-*.swp
-*.swo
+*.temp
+*~
 
 # OS generated files
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Icon?
+.directory
+.Trashes
 
-# Coverage reports
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+build/
+dist/
+target/
+out/
 coverage/
 htmlcov/
-.coverage
+.mypy_cache/
+.pytest_cache/
+.gradle/
+.npm/
 
-# Compressed files
+# Compression files
 *.zip
 *.gz
 *.tar
@@ -67,14 +103,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-
-# Editors
-.vscode/
-.idea/
-
-# Gradle
-.gradle/
-
-# Docker (if applicable)
-.dockerenv
-```
