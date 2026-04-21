@@ -77,6 +77,15 @@ if [[ "$PROFILE" == "3090" ]]; then
     SWAP_TOTAL=$(free -m | awk '/^Swap:/{print $2}')
     if [[ "$SWAP_TOTAL" -lt 16384 ]]; then
         echo "[bootstrap] Creating 32GB swapfile for 3090 profile..."
+        # Remove existing swapfile if it exists and is in use
+        if [[ -f /swapfile ]]; then
+            echo "[bootstrap] Deactivating existing swapfile..."
+            swapoff /swapfile 2>/dev/null || true
+            rm -f /swapfile
+        fi
+        # Ensure no stale entry in fstab
+        sed -i '/^[^#].*\/swapfile.*swap/d' /etc/fstab
+        # Create new swapfile
         fallocate -l 32G /swapfile
         chmod 600 /swapfile
         mkswap /swapfile
